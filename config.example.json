@@ -1,0 +1,98 @@
+{
+  "defaults": {
+    "weights": {
+      "U": 0.3,
+      "R": 0.25,
+      "P": 0.15,
+      "A": 0.3
+    },
+    "lightThreshold": 0.35,
+    "deepThreshold": 0.6,
+    "maxInterval": 12,
+    "minInterval": 2,
+    "decay": 0.7,
+    "decaySteps": 3,
+    "window": 6,
+    "retentionDays": 90,
+    "riskRules": [
+      {
+        "id": "delete",
+        "level": 1,
+        "field": "command",
+        "pattern": "(?:^|[\\s;&|])(?:rm|rmdir|del|erase|rd|remove-item)(?:\\s|$)"
+      },
+      {
+        "id": "delete-tool",
+        "level": 1,
+        "field": "tool",
+        "pattern": "(?:^|_)(?:delete|remove|unlink)(?:_|$)"
+      },
+      {
+        "id": "overwrite-tool",
+        "level": 1,
+        "field": "tool",
+        "pattern": "^(?:write|write_file|overwrite_file)$"
+      },
+      {
+        "id": "overwrite-shell",
+        "level": 1,
+        "field": "command",
+        "pattern": "(?:^|[^>])>(?!>)|\\b(?:set-content|out-file|tee)\\b|\\bsed\\s+-[^\\s]*i"
+      },
+      {
+        "id": "push",
+        "level": 1,
+        "field": "command",
+        "pattern": "\\bgit(?:\\s+-[^\\s]+)*\\s+push\\b"
+      },
+      {
+        "id": "external-tool",
+        "level": 1,
+        "field": "tool",
+        "pattern": "(?:^|_)(?:send|publish|post_message|create_issue|create_pull_request)(?:_|$)"
+      },
+      {
+        "id": "external-shell",
+        "level": 1,
+        "field": "command",
+        "pattern": "\\b(?:curl|wget)\\b[^\\n]*(?:--data|-d\\s|-F\\s|--upload-file|-T\\s|-X\\s*(?:POST|PUT|PATCH|DELETE))|\\b(?:send-mailmessage|sendmail)\\b|\\bgh\\s+(?:issue|pr)\\s+(?:create|comment)\\b|\\binvoke-restmethod\\b[^\\n]*-method\\s+(?:post|put|patch|delete)"
+      },
+      {
+        "id": "credentials",
+        "level": 1,
+        "field": "path",
+        "pattern": "(?:^|/)(?:\\.ssh|\\.aws|\\.azure|\\.gnupg|credentials|secrets?)(?:/|$)|(?:^|/)(?:\\.env(?:\\.[^/]*)?|auth\\.json|credentials(?:\\.json)?|id_rsa|id_ed25519)$|\\.(?:pem|key|p12|pfx)$"
+      },
+      {
+        "id": "credentials-shell",
+        "level": 1,
+        "field": "command",
+        "pattern": "(?:[/.\\\\]|^)(?:\\.ssh|\\.aws|\\.env(?:[.\\s]|$)|auth\\.json|credentials|id_rsa|id_ed25519)|\\.(?:pem|key|p12|pfx)(?:[\\s'\"]|$)"
+      },
+      {
+        "id": "configuration",
+        "level": 0.5,
+        "field": "path",
+        "pattern": "(?:^|/)(?:[^/]*config[^/]*|settings\\.json|\\.[^/]+rc)$"
+      },
+      {
+        "id": "dependency-file",
+        "level": 0.5,
+        "field": "path",
+        "pattern": "(?:^|/)(?:package(?:-lock)?\\.json|[^/]*lock(?:\\.yaml)?|requirements[^/]*\\.txt|pyproject\\.toml|cargo\\.toml|go\\.mod)$"
+      },
+      {
+        "id": "dependency-command",
+        "level": 0.5,
+        "field": "command",
+        "pattern": "\\b(?:npm|pnpm|yarn|pip|uv|cargo)\\s+(?:install|add|remove|update|uninstall)\\b"
+      }
+    ]
+  },
+  "models": {
+    "provider/model-id": {
+      "lightThreshold": 0.4,
+      "deepThreshold": 0.65
+    }
+  }
+}
