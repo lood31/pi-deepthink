@@ -3,7 +3,7 @@ import { hash, resolveConfig } from "./config.ts";
 import { commit, decide, initialState } from "./scheduler.ts";
 import { Signals } from "./signals.ts";
 import { Outcomes } from "./recorder.ts";
-import type { Action, ConfigFile, Decision, LogRow, Mode, Observation, RowSink, SchedulerConfig, Snapshot } from "./types.ts";
+import type { Action, ConfigFile, Decision, LogRow, Mode, Observation, Recurrence, RowSink, SchedulerConfig, Snapshot } from "./types.ts";
 
 export interface Metadata {
   source: "live" | "replay";
@@ -18,6 +18,7 @@ export interface Intent {
   decision: Decision;
   snapshot: Snapshot;
   boundaryStep: number;
+  recurrence?: Recurrence;
 }
 interface Selected { decision: Decision; snapshot: Snapshot }
 
@@ -46,6 +47,7 @@ export class Runtime {
   private outcomes = new Outcomes();
   private seenErrors = new Set<string>();
   private pending: Intent | null = null;
+  private recurrenceAnchor: { id: string; step: number; error: string; tool: string; target: string } | null = null;
   private seenCalls = new Set<string>();
   private count = 0;
   private sink: RowSink;
@@ -90,7 +92,16 @@ export class Runtime {
     const snapshots = this.signals.batch(fresh);
     let candidate: Selected | null = null;
     let actual: Selected | null = null;
+    // Keep this batch's anchor for a selected earlier snapshot, even if a later sibling expires it.
+    let recurrenceAnchor = this.recurrenceAnchor;
     for (const snapshot of snapshots) {
+      if (recurrenceAnchor && snapshot.observation.tool === recurrenceAnchor.tool
+        && snapshot.observation.target === recurrenceAnchor.target && snapshot.observation.error === null) {
+        recurrenceAnchor = null;
+      }
+      if (!recurrenceAnchor || snapshot.step - recurrenceAnchor.step > this.config.recurrenceWindow) {
+        this.recurrenceAnchor = null;
+      }
       for (const outcome of this.outcomes.advance(snapshot.observation)) await this.log("outcome", { ...outcome, step: snapshot.step });
       if (snapshot.observation.error) this.seenErrors.add(snapshot.observation.error);
       const proposed = decide(snapshot, this.virtualState, this.config);
@@ -115,12 +126,18 @@ export class Runtime {
     if (this.mode === "shadow" || !actual || !eligible || !this.healthy) return null;
     const action = this.mode === "light" ? "light" : actual.decision.action;
     if (action === "pass") return null;
+    const anchor = recurrenceAnchor;
+    const stepsSince = anchor ? actual.snapshot.step - anchor.step : 0;
+    const recurrence: Recurrence | undefined = anchor && stepsSince > 0 && stepsSince <= this.config.recurrenceWindow
+      && actual.snapshot.observation.error === anchor.error && actual.snapshot.observation.tool === anchor.tool
+      && actual.snapshot.observation.target === anchor.target
+      ? { previousId: anchor.id, error: anchor.error, stepsSince } : undefined;
     const intent: Intent = {
       id: this.meta.runId + ":intervention:" + ++this.count, action,
-      ...actual, boundaryStep: this.step,
+      ...actual, boundaryStep: this.step, ...(recurrence ? { recurrence } : {}),
     };
     await this.log("intervention-proposed", { id: intent.id, action, proposedAction: actual.decision.action,
-      reasons: actual.decision.reasons, delivery: "proposed" });
+      reasons: actual.decision.reasons, delivery: "proposed", ...(recurrence ? { recurrence } : {}) });
     if (!this.healthy) return null;
     this.pending = intent;
     return intent;
@@ -136,8 +153,14 @@ export class Runtime {
   /** Account for a persisted host submission, even if off/reset happened in between. */
   async delivered(intent: Intent, mode: Mode, continuous: boolean): Promise<void> {
     await this.log("intervention", { id: intent.id, mode, step: intent.boundaryStep, action: intent.action,
-      reasons: intent.decision.reasons, delivery: "persisted", startStep: intent.boundaryStep });
+      reasons: intent.decision.reasons, delivery: "persisted", startStep: intent.boundaryStep,
+      ...(intent.recurrence ? { recurrence: intent.recurrence } : {}) });
     if (continuous) {
+      const o = intent.snapshot.observation;
+      if (this.config.recurrenceWindow > 0 && this.healthy) {
+        this.recurrenceAnchor = o.error ? { id: intent.id, step: intent.boundaryStep,
+          error: o.error, tool: o.tool, target: o.target } : null;
+      }
       this.actualState = commit(this.actualState, intent.action, intent.boundaryStep);
       this.outcomes.start(intent.id, "intervention", intent.boundaryStep, intent.snapshot.observation, this.seenErrors);
     } else {
@@ -175,6 +198,7 @@ export class Runtime {
     this.signals.reset();
     this.virtualState = initialState();
     this.actualState = initialState();
+    this.recurrenceAnchor = null;
     this.seenErrors.clear();
     this.seenCalls.clear();
   }

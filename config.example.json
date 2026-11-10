@@ -13,6 +13,7 @@
     "decay": 0.7,
     "decaySteps": 3,
     "window": 6,
+    "recurrenceWindow": 0,
     "retentionDays": 90,
     "riskRules": [
       {

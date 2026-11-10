@@ -161,7 +161,7 @@ export class LiveController {
       if (!this.runtime.healthy) { await this.fail(ctx); return; }
       if (!intent || generation !== this.generation || this.runtime.mode === "shadow"
         || this.runtime.pendingId !== intent.id) return;
-      const draft = interventionMessage(intent.id, intent.action, intent.decision, intent.snapshot);
+      const draft = interventionMessage(intent.id, intent.action, intent.decision, intent.snapshot, intent.recurrence);
       if (!this.runtime.submit(intent.id)) return;
       // Host-owned drafts are not retractable. Keep them across off/reset until post-boundary confirmation.
       this.submissions.set(intent.id, { runtime: this.runtime, intent, mode: this.runtime.mode, generation });

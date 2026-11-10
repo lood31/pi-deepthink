@@ -53,6 +53,11 @@ export interface Decision {
   hard: boolean;
   reasons: string[];
 }
+export interface Recurrence {
+  previousId: string;
+  error: string;
+  stepsSince: number;
+}
 export interface RiskRule {
   id: string;
   level: Risk;
@@ -68,6 +73,7 @@ export interface SchedulerConfig {
   decay: number;
   decaySteps: number;
   window: number;
+  recurrenceWindow: number;
   retentionDays: number;
   riskRules: RiskRule[];
 }

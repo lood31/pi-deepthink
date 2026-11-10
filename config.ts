@@ -8,7 +8,7 @@ export const defaults: SchedulerConfig = {
   weights: { U: .30, R: .25, P: .15, A: .30 },
   lightThreshold: .35, deepThreshold: .60,
   maxInterval: 12, minInterval: 2, decay: .7, decaySteps: 3,
-  window: 6, retentionDays: 90,
+  window: 6, recurrenceWindow: 0, retentionDays: 90,
   riskRules: [
     { id: "delete", level: 1, field: "command", pattern: "(?:^|[\\s;&|])(?:rm|rmdir|del|erase|rd|remove-item)(?:\\s|$)" },
     { id: "delete-tool", level: 1, field: "tool", pattern: "(?:^|_)(?:delete|remove|unlink)(?:_|$)" },
@@ -50,6 +50,9 @@ export function validate(c: SchedulerConfig): SchedulerConfig {
   if (c.lightThreshold >= c.deepThreshold) throw new Error("Thresholds must be ordered");
   for (const key of ["maxInterval", "minInterval", "decaySteps", "window", "retentionDays"] as const) {
     if (!Number.isSafeInteger(c[key]) || c[key] < 1 || c[key] > 10000) throw new Error("Invalid " + key);
+  }
+  if (!Number.isSafeInteger(c.recurrenceWindow) || c.recurrenceWindow < 0 || c.recurrenceWindow > 10000) {
+    throw new Error("Invalid recurrenceWindow");
   }
   if (!Array.isArray(c.riskRules) || c.riskRules.length > 100) throw new Error("Invalid risk rules");
   const ids = new Set<string>();
